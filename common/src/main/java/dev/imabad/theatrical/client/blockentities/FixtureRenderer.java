@@ -14,8 +14,10 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
@@ -23,6 +25,7 @@ import org.joml.Matrix4f;
 
 public abstract class FixtureRenderer<T extends BaseLightBlockEntity> implements BlockEntityRenderer<T> {
     private final Double beamOpacity = TheatricalConfig.INSTANCE.CLIENT.beamOpacity;
+
 
     public FixtureRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -44,12 +47,19 @@ public abstract class FixtureRenderer<T extends BaseLightBlockEntity> implements
                     Vec3 offset = Vec3.atLowerCornerOf(blockEntity.getBlockPos()).subtract(camera.getPosition());
                     poseStack.translate(offset.x, offset.y, offset.z);
                     preparePoseStack(blockEntity, poseStack, facing, partialTick, isFlipped, blockState, isHanging);
+                    //VertexConsumer beamConsumer = bufferSource.getBuffer(TheatricalRenderTypes.BEAM);
+                    //poseStack.translate(blockEntity.getFixture().getBeamStartPosition()[0], blockEntity.getFixture().getBeamStartPosition()[1], blockEntity.getFixture().getBeamStartPosition()[2]);
+                    //float intensity = blockEntity.getIntensity();
+                    //int color = blockEntity.getColour();
+                    //if(color != 0) {
+                    //    renderLightBeam(beamConsumer, poseStack, blockEntity, partialTick, (float) ((intensity * beamOpacity) / 255f), blockEntity.getFixture().getBeamWidth(), (float) blockEntity.getDistance(), color);
+                    //}
                     VertexConsumer beamConsumer = bufferSource.getBuffer(TheatricalRenderTypes.BEAM);
                     poseStack.translate(blockEntity.getFixture().getBeamStartPosition()[0], blockEntity.getFixture().getBeamStartPosition()[1], blockEntity.getFixture().getBeamStartPosition()[2]);
                     float intensity = blockEntity.getIntensity();
                     int color = blockEntity.getColour();
                     if(color != 0) {
-                        renderLightBeam(beamConsumer, poseStack, blockEntity, partialTick, (float) ((intensity * beamOpacity) / 255f), blockEntity.getFixture().getBeamWidth(), (float) blockEntity.getDistance(), color);
+                        renderLightGoboBeam(beamConsumer, poseStack, blockEntity, partialTick, (float) ((intensity * beamOpacity) / 255f), blockEntity.getFixture().getBeamWidth(), (float) blockEntity.getDistance(), color);
                     }
                     poseStack.popPose();
                 }
@@ -87,7 +97,18 @@ public abstract class FixtureRenderer<T extends BaseLightBlockEntity> implements
         int a = (int) (alpha * 255);
         Matrix4f m = stack.last().pose();
         Matrix3f normal = stack.last().normal();
-        float endMultiplier = beamSize * tileEntityFixture.getFocus();
+
+        length += 0.5f;
+
+
+
+        //(prevPan + (pan - prevPan) * partialTicks)
+        float focus = tileEntityFixture.getFocus();
+        float prevFocus = tileEntityFixture.getPrevFocus();
+        float curFocus = (prevFocus + (focus - prevFocus) * partialTicks);
+        float endMultiplier = 1 + curFocus*length*0.03f;
+
+
         addVertex(builder, m, normal, r, g, b, 0, beamSize * endMultiplier, beamSize * endMultiplier, -length);
         addVertex(builder, m, normal, r, g, b, a,  beamSize, beamSize, 0);
         addVertex(builder, m, normal, r, g, b, a, beamSize, -beamSize, 0);
@@ -107,8 +128,102 @@ public abstract class FixtureRenderer<T extends BaseLightBlockEntity> implements
         addVertex(builder, m, normal, r, g, b, a, beamSize, -beamSize, 0);
         addVertex(builder, m, normal, r, g, b, a, -beamSize, -beamSize, 0);
         addVertex(builder, m, normal, r, g, b, 0, -beamSize * endMultiplier, -beamSize * endMultiplier, -length);
-    }
 
+        //backface
+
+        addVertex(builder, m, normal, r, g, b, a,  beamSize, beamSize, 0);
+        addVertex(builder, m, normal, r, g, b, 0, beamSize * endMultiplier, beamSize * endMultiplier, -length);
+        addVertex(builder, m, normal, r, g, b, 0,beamSize * endMultiplier, -beamSize * endMultiplier, -length);
+        addVertex(builder, m, normal, r, g, b, a, beamSize, -beamSize, 0);
+
+        addVertex(builder, m, normal, r, g, b, a, -beamSize, -beamSize, 0);
+        addVertex(builder, m, normal, r, g, b, 0, -beamSize * endMultiplier, -beamSize * endMultiplier, -length);
+        addVertex(builder, m, normal, r, g, b, 0, -beamSize * endMultiplier, beamSize * endMultiplier, -length);
+        addVertex(builder, m, normal, r, g, b, a, -beamSize, beamSize, 0);
+
+        addVertex(builder, m, normal, r, g, b, a, -beamSize, beamSize, 0);
+        addVertex(builder, m, normal, r, g, b, 0, -beamSize * endMultiplier, beamSize * endMultiplier, -length);
+        addVertex(builder, m, normal, r, g, b, 0, beamSize * endMultiplier, beamSize * endMultiplier, -length);
+        addVertex(builder, m, normal, r, g, b, a, beamSize, beamSize, 0);
+
+        addVertex(builder, m, normal, r, g, b, a, beamSize, -beamSize, 0);
+        addVertex(builder, m, normal, r, g, b, 0, beamSize * endMultiplier, -beamSize * endMultiplier, -length);
+        addVertex(builder, m, normal, r, g, b, 0, -beamSize * endMultiplier, -beamSize * endMultiplier, -length);
+        addVertex(builder, m, normal, r, g, b, a, -beamSize, -beamSize, 0);
+
+
+    }
+    protected void renderLightGoboBeam(VertexConsumer builder, PoseStack stack, T tileEntityFixture, float partialTicks, float alpha, float beamSize, float length, int color) {
+
+        //boolean[][] GOBO = {
+        //        {false, true, true, true, true, true, true, false},
+        //        {true,  false, false, false, false, false, false, true},
+        //        {true,  false, false, false, false, false, false, true},
+        //        {true,  false, false, false, false, false, false, true},
+        //        {true,  false, false, false, false, false, false, true},
+        //        {true,  false, false, false, false, false, false, true},
+        //        {true,  false, false, false, false, false, false, true},
+        //        {false, true, true, true, true, true, true, false}
+        //};
+        boolean[][] GOBO = {
+                { true, false, false, false, false, false, false,  true},
+                {false,  true, false, false, false, false,  true, false},
+                {false, false,  true, false, false,  true, false, false},
+                {false, false, false,  true,  true, false, false, false},
+                {false, false, false,  true,  true, false, false, false},
+                {false, false,  true, false, false,  true, false, false},
+                {false,  true, false, false, false, false,  true, false},
+                { true, false, false, false, false, false, false,  true}
+        };
+
+        int r = (color >> 16) & 0xFF;
+        int g = (color >> 8) & 0xFF;
+        int b = color & 0xFF;
+        int a = (int) (alpha * 255);
+        Matrix4f m = stack.last().pose();
+        Matrix3f normal = stack.last().normal();
+        length += 0.5f;
+
+
+
+        //(prevPan + (pan - prevPan) * partialTicks)
+        float focus = tileEntityFixture.getFocus();
+        float prevFocus = tileEntityFixture.getPrevFocus();
+        float curFocus = (prevFocus + (focus - prevFocus) * partialTicks);
+        float endMultiplier = 1 + curFocus*length*0.03f;
+
+        for(int x = 0; x <= 7;x++){
+            for(int y = 0; y <= 7; y++){
+                if(!GOBO[x][y]){continue;}
+                float xOffset = ((float)x)/4f-(7f/8f);
+                float yOffset = ((float)y)/4f-(7f/8f);
+
+                xOffset *= beamSize;
+                yOffset *= beamSize;
+
+                addVertex(builder, m, normal, r, g, b, 0, beamSize * endMultiplier * 0.125f + xOffset * endMultiplier, beamSize * endMultiplier * 0.125f + yOffset * endMultiplier, -length);
+                addVertex(builder, m, normal, r, g, b, a,  beamSize * 0.125f + xOffset, beamSize * 0.125f + yOffset, 0);
+                addVertex(builder, m, normal, r, g, b, a, beamSize * 0.125f + xOffset, -beamSize * 0.125f + yOffset, 0);
+                addVertex(builder, m, normal, r, g, b, 0,beamSize * endMultiplier * 0.125f + xOffset * endMultiplier, -beamSize * endMultiplier * 0.125f + yOffset* endMultiplier, -length);
+
+                addVertex(builder, m, normal, r, g, b, 0, -beamSize * endMultiplier * 0.125f + xOffset * endMultiplier, -beamSize * endMultiplier * 0.125f + yOffset* endMultiplier, -length);
+                addVertex(builder, m, normal, r, g, b, a, -beamSize * 0.125f + xOffset, -beamSize * 0.125f + yOffset, 0);
+                addVertex(builder, m, normal, r, g, b, a, -beamSize * 0.125f + xOffset, beamSize * 0.125f + yOffset, 0);
+                addVertex(builder, m, normal, r, g, b, 0, -beamSize * endMultiplier * 0.125f + xOffset * endMultiplier, beamSize * endMultiplier * 0.125f + yOffset * endMultiplier, -length);
+
+                addVertex(builder, m, normal, r, g, b, 0, -beamSize * endMultiplier * 0.125f + xOffset * endMultiplier, beamSize * endMultiplier * 0.125f + yOffset * endMultiplier, -length);
+                addVertex(builder, m, normal, r, g, b, a, -beamSize * 0.125f + xOffset, beamSize * 0.125f + yOffset, 0);
+                addVertex(builder, m, normal, r, g, b, a, beamSize * 0.125f + xOffset, beamSize * 0.125f + yOffset, 0);
+                addVertex(builder, m, normal, r, g, b, 0, beamSize * endMultiplier * 0.125f + xOffset * endMultiplier, beamSize * endMultiplier * 0.125f + yOffset * endMultiplier, -length);
+
+                addVertex(builder, m, normal, r, g, b, 0, beamSize * endMultiplier * 0.125f + xOffset * endMultiplier, -beamSize * endMultiplier * 0.125f + yOffset * endMultiplier, -length);
+                addVertex(builder, m, normal, r, g, b, a, beamSize * 0.125f + xOffset, -beamSize * 0.125f + yOffset, 0);
+                addVertex(builder, m, normal, r, g, b, a, -beamSize * 0.125f + xOffset, -beamSize * 0.125f + yOffset, 0);
+                addVertex(builder, m, normal, r, g, b, 0, -beamSize * endMultiplier * 0.125f + xOffset * endMultiplier, -beamSize * endMultiplier * 0.125f + yOffset * endMultiplier, -length);
+
+            }
+        }
+    }
     protected void addVertex(VertexConsumer builder, Matrix4f matrix4f, Matrix3f matrix3f, int r, int g, int b, int a, float x, float y, float z) {
         builder.vertex(matrix4f, x, y, z).color(r, g, b, a).endVertex();
     }
